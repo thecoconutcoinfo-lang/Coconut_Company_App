@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "842059080083",
+    "project_id": "coconut-company",
+    "storage_bucket": "coconut-company.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842059080083:android:61e6cfd37dd6f14a310866",
+        "android_client_info": {
+          "package_name": "com.example.coconutcompany"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOipChF9HhgDPXJ6hCghCx15zlQ0hVbrs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842059080083:android:7bf4a78705fcff9a310866",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOipChF9HhgDPXJ6hCghCx15zlQ0hVbrs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
