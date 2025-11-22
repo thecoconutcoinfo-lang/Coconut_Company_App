@@ -1,9 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:myapp/providers/user_provider.dart';
 import 'package:myapp/screens/admin/admin_main.dart';
 import 'package:myapp/screens/login_screen.dart';
 import 'package:myapp/screens/seller/seller_main.dart';
+import 'package:provider/provider.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -13,47 +15,49 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // App is still waiting for auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
-        // If user is logged in
-        if (snapshot.hasData) {
-          final user = snapshot.data!;
+        if (snapshot.hasData && snapshot.data != null) {
           return FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
-            builder: (context, userDocSnapshot) {
-              if (userDocSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
+            future: FirebaseFirestore.instance
+                .collection('users')
+                .doc(snapshot.data!.uid)
+                .get(),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
               }
 
-              if (userDocSnapshot.hasData && userDocSnapshot.data!.exists) {
-                final userData = userDocSnapshot.data!.data() as Map<String, dynamic>;
-                final role = userData['role'];
+              if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                final userRole = userSnapshot.data!['role'];
+                final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-                if (role == 'admin') {
+                // Schedule the state update for after the build phase to avoid errors
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (userProvider.userRole == UserRole.none) { // Set role only if not already set
+                        if (userRole == 'admin') {
+                            userProvider.setUserRole(UserRole.admin);
+                        } else if (userRole == 'seller') {
+                            userProvider.setUserRole(UserRole.seller);
+                        }
+                    }
+                });
+
+                if (userRole == 'admin') {
                   return const AdminMain();
-                } else if (role == 'seller') {
+                } else if (userRole == 'seller') {
                   return const SellerMain();
                 }
               }
 
-              // If role is not found or document doesn't exist, default to login screen
+              // Fallback to login screen if role not found or something went wrong
               return const LoginScreen();
             },
           );
         }
 
-        // If user is not logged in
         return const LoginScreen();
       },
     );

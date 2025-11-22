@@ -1,28 +1,37 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'payment_screen.dart';
 
 class InvoiceScreen extends StatelessWidget {
   final int quantity;
+  final double subtotal;
+  final double discount;
+  final double finalPrice;
+  final DocumentSnapshot? appliedOffer;
   final Map<String, String> customerDetails;
 
   const InvoiceScreen({
     super.key,
     required this.quantity,
+    required this.subtotal,
+    required this.discount,
+    required this.finalPrice,
+    this.appliedOffer,
     required this.customerDetails,
   });
 
   @override
   Widget build(BuildContext context) {
-    const double pricePerCoconut = 60.0; // inclusive of 5% tax
+    const double pricePerCoconut = 60.0; // Hardcoded for display, not for calculation
     const double taxPercent = 5.0;
 
-    double subtotal = pricePerCoconut * quantity;
-    double discount = quantity > 4 ? subtotal * 0.4 : 0.0;
-    double totalAfterDiscount = subtotal - discount;
+    // Tax is calculated on the final discounted price
+    double basePrice = finalPrice / (1 + taxPercent / 100);
+    double taxAmount = finalPrice - basePrice;
 
-    // Calculate tax breakdown
-    double basePrice = totalAfterDiscount / (1 + taxPercent / 100);
-    double taxAmount = totalAfterDiscount - basePrice;
+    final String offerTitle = appliedOffer != null 
+        ? (appliedOffer!.data() as Map<String, dynamic>)['title'] ?? 'Discount' 
+        : 'Discount';
 
     return Scaffold(
       appBar: AppBar(
@@ -36,76 +45,71 @@ class InvoiceScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Customer: ${customerDetails['CustomerName']}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+             // Customer Info Header
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    customerDetails['CustomerName'] ?? 'N/A',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  if (customerDetails['CustomerPhone']!.isNotEmpty)
+                    Text('Mobile: ${customerDetails['CustomerPhone']}'),
+                  if (customerDetails['CustomerAddress']!.isNotEmpty)
+                    Text('Address: ${customerDetails['CustomerAddress']}'),
+                ],
+              ),
             ),
-            Text('Mobile: ${customerDetails['CustomerPhone']}'),
-            Text('Address: ${customerDetails['CustomerAddress']}'),
-            const SizedBox(height: 16),
-
-            const Divider(thickness: 1),
+            const SizedBox(height: 24),
 
             const Text(
               'Order Summary',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Quantity'),
-                Text('$quantity'),
-              ],
+            _buildDetailRow('Item', 'Quantity', 'Price'),
+            const Divider(),
+            _buildDetailRow(
+              'Fresh Coconut', 
+              '$quantity', 
+              '₹${pricePerCoconut.toStringAsFixed(2)}'
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Price per Coconut'),
-                Text('₹$pricePerCoconut'),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Subtotal'),
-                Text('₹${subtotal.toStringAsFixed(2)}'),
-              ],
-            ),
+            const SizedBox(height: 20),
+
+            // Pricing section
+             _buildPricingRow('Subtotal', '₹${subtotal.toStringAsFixed(2)}'),
+            
             if (discount > 0)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Discount (40%)', style: TextStyle(color: Colors.green)),
-                  Text('-₹${discount.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.green)),
-                ],
+             Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                     Text('Discount ($offerTitle)', style: const TextStyle(color: Colors.green, fontSize: 16)),
+                     Text('-₹${discount.toStringAsFixed(2)}', style: const TextStyle(color: Colors.green, fontSize: 16)),
+                  ],
+                ),
               ),
-            const SizedBox(height: 8),
 
-            const Divider(thickness: 1),
+             _buildPricingRow('Taxable Amount', '₹${basePrice.toStringAsFixed(2)}'),
+             _buildPricingRow('Tax (5%)', '₹${taxAmount.toStringAsFixed(2)}'),
 
-            Row(
+            const Divider(thickness: 2, height: 24),
+
+            // Total
+             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Tax (5%)'),
-                Text('₹${taxAmount.toStringAsFixed(2)}'),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  '₹${totalAfterDiscount.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                const Text('Total Amount', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('₹${finalPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF34eb89))),
               ],
             ),
 
@@ -116,29 +120,54 @@ class InvoiceScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF34eb89),
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => PaymentScreen(
-                        totalAmount: totalAfterDiscount,
-                        sellerName: 'Seller_Name', // can be dynamic later
+                        totalAmount: finalPrice,
+                        sellerName: 'Seller_Name', // Placeholder
                         quantity: quantity,
                         customerDetails: customerDetails,
                       ),
                     ),
                   );
                 },
-                child: const Text(
-                  'Proceed to Payment',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
+                child: const Text('Proceed to Payment'),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String item, String qty, String price, {bool isHeader = false}) {
+    final style = TextStyle(fontWeight: isHeader ? FontWeight.bold : FontWeight.normal, fontSize: 15);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Expanded(flex: 3, child: Text(item, style: style)),
+          Expanded(flex: 1, child: Text(qty, textAlign: TextAlign.center, style: style)),
+          Expanded(flex: 1, child: Text(price, textAlign: TextAlign.right, style: style)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPricingRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 16)),
+          Text(value, style: const TextStyle(fontSize: 16)),
+        ],
       ),
     );
   }

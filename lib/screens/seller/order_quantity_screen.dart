@@ -1,4 +1,4 @@
-// lib/screens/seller/order_quantity_screen.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'customer_details_screen.dart';
 
@@ -11,8 +11,25 @@ class OrderQuantityScreen extends StatefulWidget {
 
 class _OrderQuantityScreenState extends State<OrderQuantityScreen> {
   int _quantity = 1;
-  static const double pricePerCoconut = 60.0; // ₹60 inclusive of 5% tax
-  static const int discountThreshold = 4; // qty > 4 -> 40% discount (applied later)
+  static const double pricePerCoconut = 60.0;
+  List<DocumentSnapshot> _offers = [];
+  DocumentSnapshot? _appliedOffer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOffers();
+  }
+
+  Future<void> _fetchOffers() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('offers')
+        .where('isActive', isEqualTo: true)
+        .get();
+    setState(() {
+      _offers = snapshot.docs;
+    });
+  }
 
   void _increase() => setState(() => _quantity++);
   void _decrease() {
@@ -20,15 +37,67 @@ class _OrderQuantityScreenState extends State<OrderQuantityScreen> {
   }
 
   double get _subtotal => _quantity * pricePerCoconut;
-  String get _discountHint {
-    if (_quantity > discountThreshold) {
-      return "Offer applicable: 40% off (will be applied on invoice)";
+
+  Map<String, dynamic> _getBestOffer() {
+    double bestDiscount = 0;
+    DocumentSnapshot? bestOfferDoc;
+
+    for (final offerDoc in _offers) {
+      final offer = offerDoc.data() as Map<String, dynamic>;
+      final conditionType = offer['quantityConditionType'];
+      final conditionValue = offer['quantityConditionValue'];
+      bool isApplicable = false;
+
+      if (conditionType == null) {
+        isApplicable = true; // No quantity condition
+      } else if (conditionValue != null) {
+        switch (conditionType) {
+          case 'greaterThan':
+            isApplicable = _quantity > conditionValue;
+            break;
+          case 'lessThan':
+            isApplicable = _quantity < conditionValue;
+            break;
+          case 'equalTo':
+            isApplicable = _quantity == conditionValue;
+            break;
+        }
+      }
+
+      if (isApplicable) {
+        final discountType = offer['discountType'];
+        final discountValue = offer['discountValue'];
+        double currentDiscount = 0;
+
+        if (discountType == 'percentage') {
+          currentDiscount = (_subtotal * discountValue) / 100;
+        } else if (discountType == 'fixed') {
+          currentDiscount = discountValue;
+        }
+        
+        if (currentDiscount > bestDiscount) {
+          bestDiscount = currentDiscount;
+          bestOfferDoc = offerDoc;
+        }
+      }
     }
-    return "No offer applied";
+
+    _appliedOffer = bestOfferDoc;
+    return {'discount': bestDiscount, 'offer': bestOfferDoc};
   }
 
   @override
   Widget build(BuildContext context) {
+    final bestOfferData = _getBestOffer();
+    final double discount = bestOfferData['discount'];
+    final double finalPrice = _subtotal - discount;
+
+    String offerTitle = "No offer applied";
+    if (bestOfferData['offer'] != null) {
+      final offer = bestOfferData['offer'].data() as Map<String, dynamic>;
+      offerTitle = offer['title'] ?? 'Unnamed Offer';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("New Order — Quantity"),
@@ -48,7 +117,6 @@ class _OrderQuantityScreenState extends State<OrderQuantityScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 16.0),
                 child: Row(
                   children: [
-                    // Placeholder icon
                     Container(
                       width: 70,
                       height: 70,
@@ -151,10 +219,16 @@ class _OrderQuantityScreenState extends State<OrderQuantityScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ListTile(
-                title: Text("Estimated Total: ₹${_subtotal.toStringAsFixed(2)}",
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(_discountHint),
-                trailing: const Icon(Icons.info_outline),
+                title: Text(
+                  "Final Price: ₹${finalPrice.toStringAsFixed(2)}",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF34EB89)),
+                ),
+                subtitle: Text(
+                  discount > 0
+                      ? 'Offer: $offerTitle (-₹${discount.toStringAsFixed(2)})'
+                      : 'No offer applied',
+                ),
+                trailing: Icon(discount > 0 ? Icons.check_circle : Icons.info_outline, color: discount > 0 ? Colors.green : Colors.grey),
               ),
             ),
 
@@ -169,7 +243,13 @@ class _OrderQuantityScreenState extends State<OrderQuantityScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => CustomerDetailsScreen(quantity: _quantity),
+                      builder: (_) => CustomerDetailsScreen(
+                        quantity: _quantity,
+                        subtotal: _subtotal,
+                        discount: discount,
+                        finalPrice: finalPrice,
+                        appliedOffer: _appliedOffer,
+                      ),
                     ),
                   );
                 },

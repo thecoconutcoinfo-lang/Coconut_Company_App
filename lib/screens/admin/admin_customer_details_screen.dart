@@ -1,8 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:csv/csv.dart';
+import 'package:myapp/services/downloader.dart';
 
-class AdminCustomerDetailsScreen extends StatelessWidget {
+class AdminCustomerDetailsScreen extends StatefulWidget {
   const AdminCustomerDetailsScreen({super.key});
+
+  @override
+  State<AdminCustomerDetailsScreen> createState() => _AdminCustomerDetailsScreenState();
+}
+
+class _AdminCustomerDetailsScreenState extends State<AdminCustomerDetailsScreen> {
+  late Future<List<QueryDocumentSnapshot>> _customerDetailsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _customerDetailsFuture = _fetchCustomerDetails();
+  }
 
   Future<List<QueryDocumentSnapshot>> _fetchCustomerDetails() async {
     final salesQuery = await FirebaseFirestore.instance
@@ -10,6 +25,66 @@ class AdminCustomerDetailsScreen extends StatelessWidget {
         .orderBy('timestamp', descending: true)
         .get();
     return salesQuery.docs;
+  }
+
+  Future<void> _generateAndDownloadCsv(List<QueryDocumentSnapshot> salesDocs) async {
+    if (salesDocs.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No data to export.')),
+      );
+      return;
+    }
+
+    List<List<dynamic>> rows = [];
+    // Header row
+    rows.add([
+      'Customer Name',
+      'Customer Mobile no',
+      'address',
+      'Total Quantity Purchased',
+      'Total Amount',
+      'payment_method',
+      'timestamp',
+      'Seller Email ID',
+    ]);
+
+    // Data rows
+    for (var doc in salesDocs) {
+      final data = doc.data() as Map<String, dynamic>;
+      rows.add([
+        data['Customer Name'] ?? 'N/A',
+        data['Customer Mobile no'] ?? 'N/A',
+        data['address'] ?? 'N/A',
+        data['Total Quantity Purchased'] ?? 0,
+        (data['Total Amount'] as num? ?? 0).toDouble(),
+        data['payment_method'] ?? 'N/A',
+        (data['timestamp'] as Timestamp?)?.toDate().toIso8601String() ?? 'N/A',
+        data['Seller Email ID'] ?? 'N/A',
+      ]);
+    }
+
+    String csv = const ListToCsvConverter().convert(rows);
+    const String fileName = "customer_details.csv";
+
+    try {
+      final String? path = await downloadFile(csv, fileName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(path != null 
+              ? 'CSV saved to: $path' 
+              : 'CSV downloaded successfully.'
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save CSV: $e')),
+      );
+    }
   }
 
   @override
@@ -22,7 +97,7 @@ class AdminCustomerDetailsScreen extends StatelessWidget {
         elevation: 1,
       ),
       body: FutureBuilder<List<QueryDocumentSnapshot>>(
-        future: _fetchCustomerDetails(),
+        future: _customerDetailsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -81,6 +156,24 @@ class AdminCustomerDetailsScreen extends StatelessWidget {
           );
         },
       ),
+      floatingActionButton: FutureBuilder<List<QueryDocumentSnapshot>>(
+          future: _customerDetailsFuture,
+          builder: (context, snapshot) {
+            return FloatingActionButton(
+              onPressed: () {
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  _generateAndDownloadCsv(snapshot.data!);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No customer data to export.')),
+                  );
+                }
+              },
+              backgroundColor: const Color(0xFF34eb89),
+              tooltip: 'Download Customer Data as CSV',
+              child: const Icon(Icons.download, color: Colors.black),
+            );
+          }),
     );
   }
 

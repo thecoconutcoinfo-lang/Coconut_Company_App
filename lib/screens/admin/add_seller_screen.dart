@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart' as firebase_core;
+
+import 'admin_main.dart';
 
 class AddSellerScreen extends StatefulWidget {
   const AddSellerScreen({super.key});
@@ -38,15 +41,24 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
       _isLoading = true;
     });
 
+    firebase_core.FirebaseApp? tempApp;
     try {
+      // Create a secondary app to create a user without signing out the admin
+      tempApp = await firebase_core.Firebase.initializeApp(
+        name: 'sellerCreation-${DateTime.now().millisecondsSinceEpoch}',
+        options: firebase_core.Firebase.app().options,
+      );
+
       final UserCredential userCredential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          await FirebaseAuth.instanceFor(app: tempApp)
+              .createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       final String userId = userCredential.user!.uid;
 
+      // Now use the default (admin) app instance to write to Firestore
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
         'uid': userId,
         'name': _nameController.text.trim(),
@@ -65,7 +77,11 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true);
+        // Redirect to admin dashboard
+        Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminMain()),
+            (route) => false);
       }
     } on FirebaseAuthException catch (e) {
       String message;
@@ -74,16 +90,25 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
       } else if (e.code == 'email-already-in-use') {
         message = 'An account already exists for that email.';
       } else {
-        message = 'An error occurred. Please try again.';
+        message = 'An error occurred: ${e.message}';
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add seller: $e'), backgroundColor: Colors.red),
-      );
+      if(mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to add seller: $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
+      // Delete the temporary app
+      if (tempApp != null) {
+        await tempApp.delete();
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
