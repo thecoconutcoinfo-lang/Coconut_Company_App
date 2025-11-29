@@ -11,7 +11,10 @@ class SellerCustomerDetailsScreen extends StatelessWidget {
       return [];
     }
 
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
     final orders = List<String>.from(userDoc.data()?['orders'] ?? []);
 
     if (orders.isEmpty) {
@@ -66,28 +69,35 @@ class SellerCustomerDetailsScreen extends StatelessWidget {
               final data = doc.data() as Map<String, dynamic>;
 
               final String name = data['Customer Name'] as String? ?? 'N/A';
-              final int quantity = data['Total Quantity Purchased'] as int? ?? 0;
-              final double amount = (data['Total Amount'] as num? ?? 0).toDouble();
+              final int quantity =
+                  data['Total Quantity Purchased'] as int? ?? 0;
+              final double amount = (data['Total Amount'] as num? ?? 0)
+                  .toDouble();
 
               return Card(
                 elevation: 3,
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   title: Text(
                     name,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   subtitle: Text('Quantity: $quantity'),
                   trailing: Text(
                     '₹${amount.toStringAsFixed(2)}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
+                    ),
                   ),
                   onTap: () => _showCustomerDetailsDialog(context, data),
                 ),
@@ -99,13 +109,18 @@ class SellerCustomerDetailsScreen extends StatelessWidget {
     );
   }
 
-  void _showCustomerDetailsDialog(BuildContext context, Map<String, dynamic> data) {
+  void _showCustomerDetailsDialog(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
     final String name = data['Customer Name'] as String? ?? 'N/A';
     final String phone = data['Customer Mobile no'] as String? ?? 'N/A';
     final String address = data['address'] as String? ?? 'N/A';
     final String paymentMethod = data['payment_method'] as String? ?? 'N/A';
     final Timestamp? timestamp = data['timestamp'] as Timestamp?;
     final int quantity = data['Total Quantity Purchased'] as int? ?? 0;
+    final int returnedQuantity = data['returnedQuantity'] as int? ?? 0;
+    final double refundAmount = data['returnedAmount'] as double? ?? 0;
     final double amount = (data['Total Amount'] as num? ?? 0).toDouble();
 
     String formattedDate = 'N/A';
@@ -117,10 +132,7 @@ class SellerCustomerDetailsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,13 +144,41 @@ class SellerCustomerDetailsScreen extends StatelessWidget {
               const SizedBox(height: 8),
               _buildDetailRow(context, Icons.location_on_outlined, address),
               const SizedBox(height: 8),
-               _buildDetailRow(context, Icons.shopping_cart_outlined, 'Quantity: $quantity'),
+              _buildDetailRow(
+                context,
+                Icons.shopping_cart_outlined,
+                'Quantity: $quantity',
+              ),
               const SizedBox(height: 8),
-              _buildDetailRow(context, Icons.currency_rupee, 'Amount: ${amount.toStringAsFixed(2)}'),
+              _buildDetailRow(
+                context,
+                Icons.shopping_cart_outlined,
+                'Returned: $returnedQuantity',
+              ),
               const SizedBox(height: 8),
-              _buildDetailRow(context, Icons.payment_outlined, 'Paid via $paymentMethod'),
+              _buildDetailRow(
+                context,
+                Icons.shopping_cart_outlined,
+                'Returned: $refundAmount',
+              ),
               const SizedBox(height: 8),
-              _buildDetailRow(context, Icons.calendar_today_outlined, 'Date: $formattedDate'),
+              _buildDetailRow(
+                context,
+                Icons.currency_rupee,
+                'Amount: ${amount.toStringAsFixed(2)}',
+              ),
+              const SizedBox(height: 8),
+              _buildDetailRow(
+                context,
+                Icons.payment_outlined,
+                'Paid via $paymentMethod',
+              ),
+              const SizedBox(height: 8),
+              _buildDetailRow(
+                context,
+                Icons.calendar_today_outlined,
+                'Date: $formattedDate',
+              ),
             ],
           ),
         ),
@@ -161,7 +201,9 @@ class SellerCustomerDetailsScreen extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.black87),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.black87),
           ),
         ),
       ],

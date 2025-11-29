@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/admin/admin_customer_details_screen.dart';
@@ -28,69 +29,53 @@ class AdminAboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color primaryColor = Color(0xFF34EB89);
+    final user = FirebaseAuth.instance.currentUser;
 
-    // Mock data
-    final int totalQuantity = 1200;
-    final double totalSale = 72000;
-    final int cashQuantity = 700;
-    final double cashSale = 42000;
-    final int upiQuantity = 500;
-    final double upiSale = 30000;
-
-    Widget buildStatCard(
-        String title, String value, IconData icon, Color color) {
-      return Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(20),
-        margin: const EdgeInsets.only(bottom: 16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: color.withOpacity(0.15),
-              radius: 25,
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w500,
-                  ),
+    Widget _buildSummaryCard({
+      required String title,
+      required double amount,
+      required Color color,
+    }) {
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 3,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(30),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              Text(
+                '₹${amount.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    Widget buildActionButton(String title, IconData icon, VoidCallback onTap,
-        {Color? color}) {
+    Widget buildActionButton(
+      String title,
+      IconData icon,
+      VoidCallback onTap, {
+      Color? color,
+    }) {
       return InkWell(
         onTap: onTap,
         child: Container(
@@ -121,8 +106,11 @@ class AdminAboutScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Icon(Icons.arrow_forward_ios_rounded,
-                  color: Colors.black54, size: 18),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.black54,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -140,16 +128,62 @@ class AdminAboutScreen extends StatelessWidget {
       ),
       backgroundColor: Colors.grey[100],
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         child: Column(
           children: [
             // Summary Cards
-            buildStatCard('Total Sale', '₹$totalSale | $totalQuantity pcs',
-                Icons.bar_chart_outlined, primaryColor),
-            buildStatCard('Cash Sale', '₹$cashSale | $cashQuantity pcs',
-                Icons.money_outlined, Colors.green),
-            buildStatCard('UPI Sale', '₹$upiSale | $upiQuantity pcs',
-                Icons.qr_code_2_outlined, Colors.blue),
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user?.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                }
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return const Center(
+                    child: Text("No data found for this seller."),
+                  );
+                }
+
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final double totalSaleAmount = (data['totalSaleAmount'] ?? 0.0)
+                    .toDouble();
+                final double totalCashAmount = (data['totalCashSale'] ?? 0.0)
+                    .toDouble();
+                final double totalUpiAmount = (data['totalUpiSale'] ?? 0.0)
+                    .toDouble();
+
+                return SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _buildSummaryCard(
+                        title: 'Total Sale',
+                        amount: totalSaleAmount,
+                        color: const Color(0xFF34eb89),
+                      ),
+                      const SizedBox(height: 5),
+                      _buildSummaryCard(
+                        title: 'Cash Sale',
+                        amount: totalCashAmount,
+                        color: Colors.orangeAccent,
+                      ),
+                      const SizedBox(height: 5),
+                      _buildSummaryCard(
+                        title: 'UPI Sale',
+                        amount: totalUpiAmount,
+                        color: Colors.lightBlueAccent,
+                      ),
+                      const SizedBox(height: 5),
+                    ],
+                  ),
+                );
+              },
+            ),
 
             const SizedBox(height: 10),
             const Divider(thickness: 1),
@@ -160,21 +194,24 @@ class AdminAboutScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => const AdminCustomerDetailsScreen()),
+                  builder: (context) => const AdminCustomerDetailsScreen(),
+                ),
               );
             }),
             buildActionButton('Seller Details', Icons.store_outlined, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => const AdminSellerDetailsScreen()),
+                  builder: (context) => const AdminSellerDetailsScreen(),
+                ),
               );
             }),
             buildActionButton('Offer Details', Icons.local_offer_outlined, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => const AdminOfferDetailsScreen()),
+                  builder: (context) => const AdminOfferDetailsScreen(),
+                ),
               );
             }),
             const SizedBox(height: 20),
