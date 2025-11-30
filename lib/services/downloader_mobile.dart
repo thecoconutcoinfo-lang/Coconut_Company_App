@@ -1,19 +1,26 @@
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:file_saver/file_saver.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 Future<String?> downloadFile(String content, String fileName) async {
   try {
-    final Uint8List bytes = utf8.encode(content);
+    final directory = await getExternalStoragePublicDirectory(StorageDirectory.downloads);
+    if (directory == null) {
+      throw Exception('Could not get the downloads directory');
+    }
 
-    String? path = await FileSaver.instance.saveFile(
-      name: fileName, // Pass the full filename with extension
-      bytes: bytes,
-      mimeType: MimeType.csv,
-    );
+    final filePath = '${directory.path}/$fileName';
+    final file = File(filePath);
+    await file.writeAsString(content);
 
-    return path;
+    return filePath;
   } catch (e) {
     throw Exception('Failed to save file: $e');
   }
+}
+
+Future<Directory?> getExternalStoragePublicDirectory(StorageDirectory downloads) async {
+  if (Platform.isAndroid) {
+    return Directory('/storage/emulated/0/Download');
+  }
+  return getExternalStorageDirectory();
 }

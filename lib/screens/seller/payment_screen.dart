@@ -1,3 +1,5 @@
+
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -23,10 +25,12 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen> {
   String? selectedPayment;
+  bool _isProcessing = false;
 
   Future<void> _processAndSaveSale() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error: You are not logged in.')),
       );
@@ -92,14 +96,24 @@ class _PaymentScreenState extends State<PaymentScreen> {
     });
   }
 
-  void _navigateToVerification() {
+  Future<void> _navigateToVerification() async {
+    if (_isProcessing) return;
+
     if (selectedPayment == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a payment method.')),
       );
       return;
     }
-    _processAndSaveSale().then((_) {
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      await _processAndSaveSale();
+      if (!mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -110,11 +124,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
         ),
       );
-    }).catchError((error) {
-       ScaffoldMessenger.of(context).showSnackBar(
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('An error occurred: $error')),
       );
-    });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
   }
 
   @override
@@ -199,8 +220,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         backgroundColor: const Color(0xFF34eb89),
                         foregroundColor: Colors.black,
                       ),
-                      onPressed: _navigateToVerification,
-                      child: const Text('Payment Done'),
+                      onPressed: _isProcessing ? null : _navigateToVerification,
+                      child: _isProcessing
+                          ? const CircularProgressIndicator()
+                          : const Text('Payment Done'),
                     ),
                   ],
                 ),
@@ -215,11 +238,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: _navigateToVerification,
-                  child: const Text(
-                    'Confirm Cash Collection',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
+                  onPressed: _isProcessing ? null : _navigateToVerification,
+                  child: _isProcessing
+                      ? const CircularProgressIndicator()
+                      : const Text(
+                          'Confirm Cash Collection',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
                 ),
               ),
           ],

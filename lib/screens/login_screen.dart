@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -26,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -49,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
           final String role = userData['role'];
 
           // Navigate based on role
-          if (mounted) {
+          if (!mounted) return;
             if (role == 'admin') {
               Navigator.pushReplacement(
                 context,
@@ -67,7 +68,6 @@ class _LoginScreenState extends State<LoginScreen> {
               });
               await FirebaseAuth.instance.signOut();
             }
-          }
         } else {
           // Handle case where user document doesn't exist
           setState(() {
@@ -78,6 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch (e) {
       // Handle Firebase Auth errors
+      if (!mounted) return;
       setState(() {
         if (e.code == 'user-not-found' || e.code == 'wrong-password') {
           _errorMessage = 'Invalid email or password.';
@@ -87,15 +88,15 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     } catch (e) {
       // Handle other errors
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'An unexpected error occurred.';
       });
     } finally {
-      if (mounted) {
+      if (!mounted) return;
         setState(() {
           _isLoading = false;
         });
-      }
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:myapp/screens/admin/add_seller_screen.dart';
+import 'package:myapp/screens/admin/admin_order_details_screen.dart';
 
 class AdminSellerDetailsScreen extends StatefulWidget {
   const AdminSellerDetailsScreen({super.key});
@@ -55,6 +56,116 @@ class _AdminSellerDetailsScreenState extends State<AdminSellerDetailsScreen> {
     }
   }
 
+  void _showSellerDetailsDialog(BuildContext context, Map<String, dynamic> sellerData) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final List<dynamic> orderIds = sellerData['orders'] ?? [];
+
+        return AlertDialog(
+          title: Text(sellerData['name'] ?? 'Seller Details'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetailRow('Email', sellerData['email']),
+                _buildDetailRow('Phone', sellerData['mobile']),
+                _buildDetailRow('Address', sellerData['address']),
+                const Divider(height: 20),
+                const Text('Orders', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: orderIds.isEmpty
+                      ? const Center(child: Text('No orders found.'))
+                      : FutureBuilder<List<DocumentSnapshot>>(
+                          future: _fetchOrdersForSeller(orderIds),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            if (snapshot.hasError) {
+                              return Center(child: Text('Error: ${snapshot.error}'));
+                            }
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                              return const Center(child: Text('No order details found.'));
+                            }
+
+                            final orders = snapshot.data!;
+                            return ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: orders.length,
+                              itemBuilder: (context, index) {
+                                final order = orders[index].data() as Map<String, dynamic>;
+                                final Timestamp timestamp = order['timestamp'] as Timestamp;
+                                final date = timestamp.toDate();
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(vertical: 4.0),
+                                  child: ListTile(
+                                    title: Text("Customer: ${order['Customer Name'] ?? 'N/A'}"),
+                                    subtitle: Text("Amount: ₹${order['Total Amount']}"),
+                                    trailing: Text('${date.day}/${date.month}/${date.year}'),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => AdminOrderDetailsScreen(orderData: order),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<List<DocumentSnapshot>> _fetchOrdersForSeller(List<dynamic> orderIds) async {
+    if (orderIds.isEmpty) return [];
+    final salesCollection = FirebaseFirestore.instance.collection('sales');
+    final List<Future<DocumentSnapshot>> futures = [];
+    for (final orderId in orderIds) {
+      if (orderId is String && orderId.isNotEmpty) {
+        futures.add(salesCollection.doc(orderId).get());
+      }
+    }
+    final results = await Future.wait(futures);
+    return results.where((doc) => doc.exists).toList();
+  }
+
+  Widget _buildDetailRow(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+          children: [
+            TextSpan(
+              text: value?.toString() ?? 'N/A',
+              style: const TextStyle(fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -107,6 +218,7 @@ class _AdminSellerDetailsScreenState extends State<AdminSellerDetailsScreen> {
                 totalOrders: totalOrders,
                 phoneNumber: phoneNumber,
                 onDelete: () => _deleteSeller(doc.id),
+                onTap: () => _showSellerDetailsDialog(context, data),
               );
             },
           );
@@ -138,6 +250,7 @@ class SellerCard extends StatelessWidget {
   final int totalOrders;
   final String phoneNumber;
   final VoidCallback onDelete;
+  final VoidCallback onTap;
 
   const SellerCard({
     super.key,
@@ -146,6 +259,7 @@ class SellerCard extends StatelessWidget {
     required this.totalOrders,
     required this.phoneNumber,
     required this.onDelete,
+    required this.onTap,
   });
 
   @override
@@ -155,6 +269,7 @@ class SellerCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 3,
       child: ListTile(
+        onTap: onTap,
         contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
           backgroundColor: Colors.green.shade700,

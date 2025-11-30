@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -33,10 +34,13 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
   }
 
   Future<void> _saveSeller() async {
+    if (_isLoading) return; // Prevent multiple submissions
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -70,19 +74,18 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Seller added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Redirect to admin dashboard
-        Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const AdminMain()),
-            (route) => false);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Seller added successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // Redirect to admin dashboard
+      Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminMain()),
+          (route) => false);
     } on FirebaseAuthException catch (e) {
       String message;
       if (e.code == 'weak-password') {
@@ -92,28 +95,25 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
       } else {
         message = 'An error occurred: ${e.message}';
       }
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
     } catch (e) {
-      if(mounted){
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to add seller: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to add seller: $e'), backgroundColor: Colors.red),
+      );
     } finally {
       // Delete the temporary app
       if (tempApp != null) {
         await tempApp.delete();
       }
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -135,31 +135,39 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
           child: ListView(
             children: [
               _buildTextField(_nameController, 'Seller Name', Icons.store),
-              _buildTextField(_addressController, 'Location/Address', Icons.location_on),
-              _buildTextField(_mobileController, 'Phone Number', Icons.phone, keyboardType: TextInputType.phone),
-              _buildTextField(_emailController, 'Email', Icons.email, keyboardType: TextInputType.emailAddress),
-              _buildTextField(_passwordController, 'Password', Icons.lock, isObscure: true),
+              _buildTextField(
+                  _addressController, 'Location/Address', Icons.location_on),
+              _buildTextField(_mobileController, 'Phone Number', Icons.phone,
+                  keyboardType: TextInputType.phone),
+              _buildTextField(_emailController, 'Email', Icons.email,
+                  keyboardType: TextInputType.emailAddress),
+              _buildTextField(_passwordController, 'Password', Icons.lock,
+                  isObscure: true),
               const SizedBox(height: 24),
-              if (_isLoading)
-                const Center(child: CircularProgressIndicator())
-              else
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF34eb89),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: _saveSeller,
-                    child: const Text(
-                      'Save Seller',
-                      style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.w600),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF34eb89),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  onPressed: _isLoading ? null : _saveSeller,
+                  child: _isLoading
+                      ? const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                        )
+                      : const Text(
+                          'Save Seller',
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600),
+                        ),
                 ),
+              ),
             ],
           ),
         ),
@@ -167,7 +175,9 @@ class _AddSellerScreenState extends State<AddSellerScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {TextInputType keyboardType = TextInputType.text, bool isObscure = false}) {
+  Widget _buildTextField(
+      TextEditingController controller, String label, IconData icon,
+      {TextInputType keyboardType = TextInputType.text, bool isObscure = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: TextFormField(

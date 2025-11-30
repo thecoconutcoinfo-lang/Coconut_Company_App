@@ -380,7 +380,9 @@ class _SellerHomeScreenState extends State<SellerHomeScreen> {
                                 ? ElevatedButton.styleFrom(
                                     backgroundColor: Colors.grey,
                                   )
-                                : null,
+                                : ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.redAccent,
+                                  ),
                             child: Text(
                               isFullyReturned ? "Returned" : "Return/Replace",
                             ),
